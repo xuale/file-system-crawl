@@ -19,6 +19,10 @@
 
 int img_fd;
 struct ext2_super_block superblock;
+struct ext2_group_desc *groupdesc;
+unsigned int blocksize = 0;
+unsigned int n_groups = 0;
+int *inode_bitmap;
 
 void dump_error(char *message, int exit_code)
 {
@@ -27,21 +31,25 @@ void dump_error(char *message, int exit_code)
   exit(exit_code);
 }
 
-void read_superblock() {
-    if(pread(img_fd, &superblock, sizeof(struct ext2_super_block),1024) == -1) {
-	dump_error("Could not read superblock", 2);
-    }
-    if (superblock.s_magic != EXT2_SUPER_MAGIC) {
-	dump_error("Argument not a ext2 file system", 2);
-    }
-    printf("SUPERBLOCK,%u,%u,%u,%u,%u,%u,%u\n",
-	   superblock.s_blocks_count,
-	   superblock.s_inodes_count,
-	   EXT2_MIN_BLOCK_SIZE << superblock.s_log_block_size,
-	   superblock.s_inode_size,
-	   superblock.s_blocks_per_group,
-	   superblock.s_inodes_per_group,
-	   superblock.s_first_ino);
+void read_superblock()
+{
+  if (pread(img_fd, &superblock, sizeof(struct ext2_super_block), 1024) == -1)
+  {
+    dump_error("Could not read superblock", 2);
+  }
+  if (superblock.s_magic != EXT2_SUPER_MAGIC)
+  {
+    dump_error("Argument not a ext2 file system", 2);
+  }
+  blocksize = EXT2_MIN_BLOCK_SIZE << superblock.s_log_block_size;
+  printf("SUPERBLOCK,%u,%u,%u,%u,%u,%u,%u\n",
+         superblock.s_blocks_count,
+         superblock.s_inodes_count,
+         blocksize,
+         superblock.s_inode_size,
+         superblock.s_blocks_per_group,
+         superblock.s_inodes_per_group,
+         superblock.s_first_ino);
 }
 
 int main(int argc, char **argv)
@@ -51,9 +59,9 @@ int main(int argc, char **argv)
     dump_error("Must provide image file as argument", 1);
   }
 
-  const char* img = argv[1];
+  const char *img = argv[1];
   img_fd = open(img, O_RDONLY);
-  if (img_fd < 0) 
+  if (img_fd < 0)
   {
     dump_error("Could not open file system image", 2);
   }
