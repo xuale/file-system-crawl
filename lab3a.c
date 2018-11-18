@@ -82,14 +82,51 @@ void read_groups()
   uint32_t last_inode = superblock.s_inodes_count % (group_cnt - 1);
   struct ext2_group_desc *last_gd = groupdesc + group_cnt - 1;
   printf("GROUP,%u,%u,%u,%u,%u,%u,%u,%u\n",
-           i,
-           superblock.s_blocks_per_group,
-           superblock.s_inodes_per_group,
-           last_gd->bg_free_blocks_count,
-           last_gd->bg_free_inodes_count,
-           last_gd->bg_block_bitmap,
-           last_gd->bg_inode_bitmap,
-           last_gd->bg_inode_table);
+         i,
+         superblock.s_blocks_per_group,
+         superblock.s_inodes_per_group,
+         last_gd->bg_free_blocks_count,
+         last_gd->bg_free_inodes_count,
+         last_gd->bg_block_bitmap,
+         last_gd->bg_inode_bitmap,
+         last_gd->bg_inode_table);
+}
+
+void read_freebm()
+{
+  bm_inodes = malloc(sizeof(uint8_t) * group_cnt * blocksize);
+  if (bm_inodes == NULL)
+  {
+    dump_error("malloc failed for bm_inodes", 2);
+  }
+  unsigned int i, j, k;
+  uint8_t blockByte, inodeByte;
+  int bitmask;
+  for (i = 0; i < group_cnt; i++)
+  {
+    for (j = 0; j < blocksize; j++)
+    {
+      if (pread(img_fd, &blockByte, 1, (blocksize * groupdesc[i].bg_block_bitmap) + j) == -1)
+      {
+        dump_error("Could not read bg_block_bitmap from image", 2);
+      }
+      if (pread(img_fd, &inodeByte, 1, (blocksize * groupdesc[i].bg_inode_bitmap) + j) == -1)
+      {
+        dump_error("Could not read bg_inode_bitmap from image", 2);
+      }
+      bm_inodes[i + j] = inodeByte;
+      bitmask = 1;
+      for (k = 0; k < 8; k++)
+      {
+        printf("fuk\n");
+        if ((blockByte & bitmask) == 0)
+          printf("BFREE,%u\n", i * superblock.s_blocks_per_group + j * 8 + k + 1);
+        if ((inodeByte & bitmask) == 0)
+          printf("IFREE,%u\n", i * superblock.s_inodes_per_group + j * 8 + k + 1);
+        bitmask <<= 1;
+      }
+    }
+  }
 }
 
 int main(int argc, char **argv)
@@ -106,5 +143,7 @@ int main(int argc, char **argv)
     dump_error("Could not open file system image", 2);
   }
   read_superblock();
+  read_groups();
+  read_freebm();
   exit(0);
 }
