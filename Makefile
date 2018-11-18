@@ -6,3 +6,7 @@ default: build
 
 build:
 	gcc -Wall -Wextra -g lab3a.c -o lab3a
+dist:
+	tar -cvzf lab3a-704936219.tar.gz lab3a.c Makefile README
+clean:
+	rm -f lab3a lab3a-704936219.tar.gz
