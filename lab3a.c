@@ -77,7 +77,7 @@ void read_groups()
            gd->bg_inode_bitmap,
            gd->bg_inode_table);
   }
-
+  /* These two lines of code below are causing `Floating point exception: 8` */
   uint32_t last_block = superblock.s_blocks_count % (group_cnt - 1);
   uint32_t last_inode = superblock.s_inodes_count % (group_cnt - 1);
   struct ext2_group_desc *last_gd = groupdesc + group_cnt - 1;
@@ -118,7 +118,6 @@ void read_freebm()
       bitmask = 1;
       for (k = 0; k < 8; k++)
       {
-        printf("fuk\n");
         if ((blockByte & bitmask) == 0)
           printf("BFREE,%u\n", i * superblock.s_blocks_per_group + j * 8 + k + 1);
         if ((inodeByte & bitmask) == 0)
