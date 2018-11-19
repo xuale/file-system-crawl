@@ -63,7 +63,7 @@ void read_groups()
     dump_error("Could not load image", 2);
   }
 
-  int i;
+  unsigned int i;
   for (i = 0; i < group_cnt - 1; i++)
   {
     struct ext2_group_desc *gd = groupdesc + i;
@@ -83,8 +83,8 @@ void read_groups()
   struct ext2_group_desc *last_gd = groupdesc + group_cnt - 1;
   printf("GROUP,%u,%u,%u,%u,%u,%u,%u,%u\n",
          i,
-         superblock.s_blocks_per_group,
-         superblock.s_inodes_per_group,
+         last_block,
+         last_inode,
          last_gd->bg_free_blocks_count,
          last_gd->bg_free_inodes_count,
          last_gd->bg_block_bitmap,
