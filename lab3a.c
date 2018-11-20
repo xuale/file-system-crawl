@@ -63,7 +63,7 @@ void read_groups()
     dump_error("Could not load image", 2);
   }
 
-  unsigned int i;
+  unsigned int i = 0;
   for (i = 0; i < group_cnt - 1; i++)
   {
     struct ext2_group_desc *gd = groupdesc + i;
@@ -77,9 +77,9 @@ void read_groups()
            gd->bg_inode_bitmap,
            gd->bg_inode_table);
   }
-  /* These two lines of code below are causing `Floating point exception: 8` */
-  uint32_t last_block = superblock.s_blocks_count % (group_cnt - 1);
-  uint32_t last_inode = superblock.s_inodes_count % (group_cnt - 1);
+  uint32_t last_block = group_cnt > 1 ? superblock.s_blocks_count % (group_cnt - 1) : superblock.s_blocks_count;
+  uint32_t last_inode = group_cnt > 1 ? superblock.s_inodes_count % (group_cnt - 1) : superblock.s_inodes_count;
+
   struct ext2_group_desc *last_gd = groupdesc + group_cnt - 1;
   printf("GROUP,%u,%u,%u,%u,%u,%u,%u,%u\n",
          i,
