@@ -106,6 +106,71 @@ void read_freebm()
   }
 }
 
+void getTime(uint32_t sec, char *buf)
+{
+  time_t ticks = (time_t)sec;
+  struct tm *timeInfo = gmtime(&ticks);
+  strftime(buf, 18, "%m/%d/%y %H:%M:%S", timeInfo);
+}
+
+void read_inodes()
+{
+  unsigned int i, j;
+  struct ext2_inode inode;
+  for (i = 0; i < superblock.s_inodes_count; i++)
+  {
+    if (pread(img_fd, &inode, sizeof(struct ext2_inode), 1024 + (blocksize * (groupdesc->bg_inode_table) - 1) + (i * sizeof(struct ext2_inode))) == -1)
+    {
+      dump_error("Could not read bg_inode_bitmap from image", 2);
+    }
+    if (!inode.i_mode || !inode.i_links_count)
+    {
+      continue;
+    }
+    char fileType = '?';
+    if (inode.i_mode & 0x4000)
+    {
+      fileType = 'd';
+    }
+    else if (inode.i_mode & 0x8000)
+    {
+      fileType = 'f';
+    }
+    else if (inode.i_mode & 0xA000)
+    {
+      fileType = 's';
+    }
+    char cTime[18];
+    getTime(inode.i_ctime, cTime);
+    char mTime[18];
+    getTime(inode.i_mtime, mTime);
+    char aTime[18];
+    getTime(inode.i_atime, aTime);
+
+    printf("INODE,%d,%c,%o,%u,%u,%u,%s,%s,%s,%u,%u\n",
+           i + 1,
+           fileType,
+           inode.i_mode & 4095,
+           inode.i_uid,
+           inode.i_gid,
+           inode.i_links_count,
+           cTime,
+           mTime,
+           aTime,
+           inode.i_size,
+           inode.i_blocks);
+    for (j = 0; j < 14; j++)
+    {
+      printf("%d,", inode.i_block[j]);
+    }
+    printf("%d\n", inode.i_block[14]);
+    if (fileType == 'd' || fileType == 'f')
+    {
+      // call recursive function...
+    }
+  }
+}
+
 int main(int argc, char **argv)
 {
   if (argc != 2)
@@ -122,5 +187,6 @@ int main(int argc, char **argv)
   read_superblock();
   read_groups();
   read_freebm();
+  read_inodes();
   exit(0);
 }
