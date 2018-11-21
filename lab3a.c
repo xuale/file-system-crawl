@@ -30,6 +30,13 @@ void dump_error(char *message, int exit_code)
   exit(exit_code);
 }
 
+void getTime(uint32_t sec, char *buf)
+{
+  time_t ticks = (time_t)sec;
+  struct tm *timeInfo = gmtime(&ticks);
+  strftime(buf, 18, "%m/%d/%y %H:%M:%S", timeInfo);
+}
+
 void read_superblock()
 {
   if (pread(img_fd, &superblock, sizeof(struct ext2_super_block), 1024) == -1)
@@ -106,11 +113,104 @@ void read_freebm()
   }
 }
 
-void getTime(uint32_t sec, char *buf)
+void print_dir_entry(struct ext2_inode *inode, int inode_num, int block_num)
 {
-  time_t ticks = (time_t)sec;
-  struct tm *timeInfo = gmtime(&ticks);
-  strftime(buf, 18, "%m/%d/%y %H:%M:%S", timeInfo);
+  struct ext2_dir_entry *dir_entry = malloc(sizeof(struct ext2_dir_entry));
+  int c = pread(img_fd, dir_entry, blocksize, (block_num - 1) * blocksize + 1024);
+  if (c < 0)
+  {
+    dump_error("Could not read directory from image", 2);
+  }
+
+  unsigned int j = 0;
+  while (j < inode->i_size)
+  {
+    if (dir_entry->inode > 0 && dir_entry->name_len > 0)
+    {
+      printf("DIRENT,%d,%u,%u,%u,%d,\'%s\'\n",
+             inode_num,
+             j,
+             dir_entry->inode,
+             dir_entry->rec_len,
+             dir_entry->name_len,
+             dir_entry->name);
+    }
+    else
+    {
+      break;
+    }
+    unsigned int offset = dir_entry->rec_len;
+    dir_entry = (void *)dir_entry + offset;
+    j += offset;
+  }
+}
+
+void recurse_indir(struct ext2_inode *inode, int degree, int isDirectory, int inode_num, int block_num, int offset)
+{
+  int block_buf[2048];
+  int c = pread(img_fd, block_buf, blocksize, (block_num - 1) * blocksize + 1024);
+  if (c < 0)
+  {
+    dump_error("Could not read indir from image", 2);
+  }
+  unsigned int i = 0;
+  while (i < blocksize / 4)
+  {
+    int new_bn = block_buf[i];
+    int new_lo = i + offset;
+    if (new_bn == 0)
+    {
+      i++;
+      continue;
+    }
+
+    if (degree == 1 && isDirectory)
+    {
+      print_dir_entry(inode, inode_num, new_bn);
+    }
+    else if (degree > 1)
+    {
+      recurse_indir(inode, degree - 1, isDirectory, inode_num, new_bn, new_lo);
+    }
+
+    printf("INDIRECT,%d,%d,%d,%d,%d\n",
+           inode_num,
+           degree,
+           new_lo,
+           block_num,
+           new_bn);
+    i++;
+  }
+}
+
+void read_dir(struct ext2_inode *inode, int isDirectory, int inode_num)
+{
+  if (isDirectory)
+  {
+    int i;
+    for (i = 0; i < 12; i++)
+    {
+      int block_num = inode->i_block[i];
+      if (block_num == 0)
+      {
+        return;
+      }
+      print_dir_entry(inode, inode_num, block_num);
+    }
+  }
+
+  if (inode->i_block[12] != 0)
+  {
+    recurse_indir(inode, 1, isDirectory, inode_num, inode->i_block[12], 12);
+  }
+  if (inode->i_block[13] != 0)
+  {
+    recurse_indir(inode, 2, isDirectory, inode_num, inode->i_block[13], 12 + 256);
+  }
+  if (inode->i_block[14] != 0)
+  {
+    recurse_indir(inode, 3, isDirectory, inode_num, inode->i_block[14], 12 + 256 * 257);
+  }
 }
 
 void read_inodes()
@@ -164,9 +264,13 @@ void read_inodes()
       printf("%d,", inode.i_block[j]);
     }
     printf("%d\n", inode.i_block[14]);
-    if (fileType == 'd' || fileType == 'f')
+    if (fileType == 'd')
     {
-      // call recursive function...
+      read_dir(&inode, 1, i + 1);
+    }
+    else if (fileType == 'f')
+    {
+      read_dir(&inode, 0, i + 1);
     }
   }
 }
