@@ -219,7 +219,7 @@ void read_inodes()
   struct ext2_inode inode;
   for (i = 0; i < superblock.s_inodes_count; i++)
   {
-    if (pread(img_fd, &inode, sizeof(struct ext2_inode), 1024 + (blocksize * (groupdesc->bg_inode_table) - 1) + (i * sizeof(struct ext2_inode))) == -1)
+    if (pread(img_fd, &inode, sizeof(struct ext2_inode), 1024 + (blocksize * (groupdesc->bg_inode_table - 1)) + (i * sizeof(struct ext2_inode))) == -1)
     {
       dump_error("Could not read bg_inode_bitmap from image", 2);
     }
@@ -247,7 +247,7 @@ void read_inodes()
     char aTime[18];
     getTime(inode.i_atime, aTime);
 
-    printf("INODE,%d,%c,%o,%u,%u,%u,%s,%s,%s,%u,%u\n",
+    printf("INODE,%d,%c,%o,%d,%d,%d,%s,%s,%s,%d,%d,",
            i + 1,
            fileType,
            inode.i_mode & 4095,
