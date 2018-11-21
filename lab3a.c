@@ -21,7 +21,6 @@ int img_fd;
 struct ext2_super_block superblock;
 struct ext2_group_desc *groupdesc;
 unsigned int blocksize = 0;
-unsigned int group_cnt = 0;
 int *bm_inodes;
 
 void dump_error(char *message, int exit_code)
@@ -54,116 +53,57 @@ void read_superblock()
 
 void read_groups()
 {
-  group_cnt = (superblock.s_blocks_count - 1) / superblock.s_blocks_per_group + 1;
-  groupdesc = malloc(group_cnt * sizeof(struct ext2_group_desc));
+  groupdesc = malloc(sizeof(struct ext2_group_desc));
 
-  int c = pread(img_fd, groupdesc, group_cnt * sizeof(struct ext2_group_desc), blocksize + 1024);
+  int c = pread(img_fd, groupdesc, sizeof(struct ext2_group_desc), blocksize + 1024);
   if (c < 0)
   {
     dump_error("Could not load image", 2);
   }
 
-  unsigned int i = 0;
-  for (i = 0; i < group_cnt - 1; i++)
-  {
-    struct ext2_group_desc *gd = groupdesc + i;
-    printf("GROUP,%u,%u,%u,%u,%u,%u,%u,%u\n",
-           i,
-           superblock.s_blocks_per_group,
-           superblock.s_inodes_per_group,
-           gd->bg_free_blocks_count,
-           gd->bg_free_inodes_count,
-           gd->bg_block_bitmap,
-           gd->bg_inode_bitmap,
-           gd->bg_inode_table);
-  }
-  uint32_t last_block = group_cnt > 1 ? superblock.s_blocks_count % (group_cnt - 1) : superblock.s_blocks_count;
-  uint32_t last_inode = group_cnt > 1 ? superblock.s_inodes_count % (group_cnt - 1) : superblock.s_inodes_count;
-
-  struct ext2_group_desc *last_gd = groupdesc + group_cnt - 1;
   printf("GROUP,%u,%u,%u,%u,%u,%u,%u,%u\n",
-         i,
-         last_block,
-         last_inode,
-         last_gd->bg_free_blocks_count,
-         last_gd->bg_free_inodes_count,
-         last_gd->bg_block_bitmap,
-         last_gd->bg_inode_bitmap,
-         last_gd->bg_inode_table);
+         0,
+         superblock.s_blocks_count,
+         superblock.s_inodes_count,
+         groupdesc->bg_free_blocks_count,
+         groupdesc->bg_free_inodes_count,
+         groupdesc->bg_block_bitmap,
+         groupdesc->bg_inode_bitmap,
+         groupdesc->bg_inode_table);
 }
 
 void read_freebm()
 {
-  bm_inodes = malloc(sizeof(uint8_t) * group_cnt * blocksize);
+  bm_inodes = malloc(sizeof(uint8_t) * blocksize);
   if (bm_inodes == NULL)
   {
     dump_error("malloc failed for bm_inodes", 2);
   }
-  unsigned int i, j, k;
+  unsigned int i, j;
   uint8_t blockByte, inodeByte;
   int bitmask;
-  for (i = 0; i < group_cnt; i++)
-  {
-    for (j = 0; j < blocksize; j++)
-    {
-      if (pread(img_fd, &blockByte, 1, (blocksize * groupdesc[i].bg_block_bitmap) + j) == -1)
-      {
-        dump_error("Could not read bg_block_bitmap from image", 2);
-      }
-      if (pread(img_fd, &inodeByte, 1, (blocksize * groupdesc[i].bg_inode_bitmap) + j) == -1)
-      {
-        dump_error("Could not read bg_inode_bitmap from image", 2);
-      }
-      bm_inodes[i + j] = inodeByte;
-      bitmask = 1;
-      for (k = 0; k < 8; k++)
-      {
-        if ((blockByte & bitmask) == 0)
-          printf("BFREE,%u\n", i * superblock.s_blocks_per_group + j * 8 + k + 1);
-        if ((inodeByte & bitmask) == 0)
-          printf("IFREE,%u\n", i * superblock.s_inodes_per_group + j * 8 + k + 1);
-        bitmask <<= 1;
-      }
-    }
-  }
-}
 
-void read_inodes()
-{
-  // for each inode
-  unsigned int i, j, k;
-  int bitmask;
-  struct ext2_inode inode;
-  for (i = 0; i < group_cnt; i++)
+  for (i = 0; i < blocksize; i++)
   {
-    for (j = 0; j < blocksize; j++)
+    if (pread(img_fd, &blockByte, 1, (blocksize * groupdesc->bg_block_bitmap) + i) == -1)
     {
-      for (k = 0; k < 8; k++)
-      {
-        if ((bm_inodes[i + j] & bitmask) == 1)
-        {
-          //found a match!
-          if (pread(img_fd, &inode, sizeof(struct ext2_inode), BLOCK_OFFSET(groupdesc[i].bg_inode_table) + (i * superblock.s_inodes_per_group + j * 8 + k + 1 - 1) * sizeof(struct ext2_inode)) < 0)
-          {
-            dump_error("error with pread", 2);
-          }
-          //get file format
-          // get mode
-          // creation time
-          // print inode
-          // print block addresses
-          // if dir run read directory
-          // check indirect blocks
-          // wtf is going on lmafoo
-        }
-        bitmask <<= 1;
-      }
+      dump_error("Could not read bg_block_bitmap from image", 2);
+    }
+    if (pread(img_fd, &inodeByte, 1, (blocksize * groupdesc->bg_inode_bitmap) + i) == -1)
+    {
+      dump_error("Could not read bg_inode_bitmap from image", 2);
+    }
+    bm_inodes[i] = inodeByte;
+    bitmask = 1;
+    for (j = 0; j < 8; j++)
+    {
+      if ((blockByte & bitmask) == 0)
+        printf("BFREE,%u\n", i * 8 + j + 1);
+      if ((inodeByte & bitmask) == 0)
+        printf("IFREE,%u\n", i * 8 + j + 1);
+      bitmask <<= 1;
     }
   }
-  // check if found and valid
-  // print info out
-  // print through directory nodes
-  // print through each indirect block, double indirect, triple indirect
 }
 
 int main(int argc, char **argv)
@@ -182,6 +122,5 @@ int main(int argc, char **argv)
   read_superblock();
   read_groups();
   read_freebm();
-  read_inodes();
   exit(0);
 }
