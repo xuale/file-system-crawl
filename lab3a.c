@@ -122,14 +122,14 @@ void print_dir_entry(struct ext2_inode *inode, int inode_num, int block_num)
     dump_error("Could not read directory from image", 2);
   }
 
-  unsigned int j = 0;
-  while (j < inode->i_size)
+  unsigned int i = 0;
+  while (i < inode->i_size)
   {
     if (dir_entry->inode > 0 && dir_entry->name_len > 0)
     {
       printf("DIRENT,%d,%u,%u,%u,%d,\'%s\'\n",
              inode_num,
-             j,
+             i,
              dir_entry->inode,
              dir_entry->rec_len,
              dir_entry->name_len,
@@ -141,7 +141,7 @@ void print_dir_entry(struct ext2_inode *inode, int inode_num, int block_num)
     }
     unsigned int offset = dir_entry->rec_len;
     dir_entry = (void *)dir_entry + offset;
-    j += offset;
+    i += offset;
   }
 }
 
