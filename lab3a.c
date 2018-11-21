@@ -128,6 +128,44 @@ void read_freebm()
   }
 }
 
+void read_inodes()
+{
+  // for each inode
+  unsigned int i, j, k;
+  int bitmask;
+  struct ext2_inode inode;
+  for (i = 0; i < group_cnt; i++)
+  {
+    for (j = 0; j < blocksize; j++)
+    {
+      for (k = 0; k < 8; k++)
+      {
+        if ((bm_inodes[i + j] & bitmask) == 1)
+        {
+          //found a match!
+          if (pread(img_fd, &inode, sizeof(struct ext2_inode), BLOCK_OFFSET(groupdesc[i].bg_inode_table) + (i * superblock.s_inodes_per_group + j * 8 + k + 1 - 1) * sizeof(struct ext2_inode)) < 0)
+          {
+            dump_error("error with pread", 2);
+          }
+          //get file format
+          // get mode
+          // creation time
+          // print inode
+          // print block addresses
+          // if dir run read directory
+          // check indirect blocks
+          // wtf is going on lmafoo
+        }
+        bitmask <<= 1;
+      }
+    }
+  }
+  // check if found and valid
+  // print info out
+  // print through directory nodes
+  // print through each indirect block, double indirect, triple indirect
+}
+
 int main(int argc, char **argv)
 {
   if (argc != 2)
@@ -144,5 +182,6 @@ int main(int argc, char **argv)
   read_superblock();
   read_groups();
   read_freebm();
+  read_inodes();
   exit(0);
 }
