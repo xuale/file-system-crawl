@@ -115,8 +115,9 @@ void read_freebm()
 
 void print_dir_entry(struct ext2_inode *inode, int inode_num, int block_num)
 {
-  struct ext2_dir_entry *dir_entry = malloc(sizeof(struct ext2_dir_entry));
-  int c = pread(img_fd, dir_entry, blocksize, (block_num - 1) * blocksize + 1024);
+  char block_buf[2048];
+  int c = pread(img_fd, block_buf, blocksize, (block_num - 1) * blocksize + 1024);
+  struct ext2_dir_entry *dir_entry = (struct ext2_dir_entry *)block_buf;
   if (c < 0)
   {
     dump_error("Could not read directory from image", 2);
